@@ -11,7 +11,7 @@
 
 .def temp = r16
 .def leds = r17
-.def speed = r18
+.def num = r19
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Macros ------------------------------------------------ ;
@@ -19,12 +19,22 @@
 
 ; The macro clears a word (2 bytes) in the data memory
 ; The parameter @0 is the memory address for that word
-.macro Clear
+.macro CLEAR_DATA_IN_MEMORY
 	ldi YL, low(@0) ; load the memory address to Y
 	ldi YH, high(@0)
 	clr temp
 	st Y+, temp ; clear the two bytes at @0 in SRAM
 	st Y, temp
+.endmacro
+
+.macro INC_DATA_IN_MEMORY
+	ldi YL, low(@0) ; load the memory address to Y
+	ldi YH, high(@0)
+	ld r24, Y+ 
+	ld r25, Y
+	adiw r25:r24, 1 
+	st Y, r25 ; Store the value of the counter.
+	st -Y, r24
 .endmacro
 
 
@@ -33,7 +43,8 @@
 ; --------------------------------------------------------------------------------------------------------------- 
 .dseg
 
-Counter:    	.byte 2 ; unnecessary, but it works now, so do not change it
+Counter:    	.byte 2 
+Speed:			.byte 2
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Interrupt Vectors ------------------------------------- ;
@@ -64,30 +75,23 @@ Timer0OVF: ; interrupt subroutine for Timer0
 	push r25
 	push r24 ; Prologue ends.
 	
-	ldi YL, low(Counter) ; Load the address of the counter.
-	ldi YH, high(Counter) 
-	ld r24, Y+ ; Load the value of the  counter.
-	ld r25, Y
-	adiw r25:r24, 1 ; Increase the  counter by one.
-	cpi r24, low(1000) ; 0.1 seconds, 100 ms
-	brne NotSecond
-	cpi r25, high(1000) ; 0.1 seconds, 100 ms
-	brne NotSecond
+	INC_DATA_IN_MEMORY Counter
+	; DO_LCD_DATA_IMMEDIATE 'A'
+
+	cpi r24, low(1000) 
+	brne endif
+	cpi r25, high(1000) 
+	brne endif
 	
 	com leds
 	out PORTC, leds
-	Clear Counter ; Reset the  counter.
-	
-	rcall LCD_display_result
-	do_lcd_data_from_immediate 'B'
+	; DO_LCD_DATA_IMMEDIATE 'A'
 
-	clr speed ; ; Reset the  Speed.
+	rcall display_speed
 	
-	rjmp endif
-	
-	NotSecond:
-		st Y, r25 ; Store the value of the counter.
-		st -Y, r24
+	CLEAR_DATA_IN_MEMORY Counter ; Reset the  counter.
+	; CLEAR_DATA_IN_MEMORY Speed
+	INC_DATA_IN_MEMORY Speed
 	
 	endif:
 		pop r24 ; Epilogue starts;
@@ -107,10 +111,13 @@ main:
 
 	rcall setup_LCD
 
+	clr num
+
 	ldi leds, 0xff ; Init pattern displayed
 	out PORTC, leds
 	ldi leds, 0b00001111
-	Clear Counter ; Initialize the counter to 0
+	CLEAR_DATA_IN_MEMORY Counter ; Initialize the counter to 0
+	CLEAR_DATA_IN_MEMORY Speed
 	ldi temp, 0b00000000
 	out TCCR0A, temp
 	ldi temp, 0b00000011
@@ -119,7 +126,6 @@ main:
 	sts TIMSK0, temp ; T/C0 interrupt enable
 	sei ; Enable global interrupt
 
-	clr speed
 
 	clr temp ; set Port D as input
 	out DDRD, temp
@@ -134,10 +140,46 @@ main:
 		rjmp loop
 
 	Received_light:
-		do_lcd_data_from_immediate 'A'
-		inc speed
+		DO_LCD_DATA_IMMEDIATE 'A'
+		
+		INC_DATA_IN_MEMORY Speed
+		
 		rjmp loop
 
+; --------------------------------------------------------------------------------------------------------------- ;
+; ------------------------------------------------------- Subrutines ------------------------------------------- ;
+; --------------------------------------------------------------------------------------------------------------- ;
+
+display_speed:
+	push Yh ; Save all conflict registers in the prologue.
+	push YL
+	push r25
+	push r24 ; Prologue ends.
+
+	ldi YL, low(Speed) 
+	ldi YH, high(Speed) 
+	ld r24, Y+ 
+	ld r25, Y
+
+	CLEAR_LCD
+
+	; subi	r25,	-'0'
+	; DO_LCD_DATA_REGISTER r25
+
+	mov num, r25
+	; inc num
+	rcall LCD_display_1_byte_number
+	; inc num
+	mov num, r24
+	rcall LCD_display_1_byte_number
+
+	
+
+	pop r24 ; Epilogue starts;
+	pop r25 ; Restore all conflict registers from the stack.
+	pop YL
+	pop YH
+	ret
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Functions ------------------------------------------- ;
