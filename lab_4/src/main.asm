@@ -222,10 +222,10 @@ display_speed:
 	ld r24, Y+ ; 
 	ld r25, Y
 
-	lsr r25
+	lsr r25			; divide by 2
 	ror r24
 
-	lsr r25
+	lsr r25			; divide by 2
 	ror r24
 
 	keep_minus_10:
