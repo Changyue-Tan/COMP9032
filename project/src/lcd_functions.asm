@@ -95,49 +95,6 @@ lcd_wait:
         pop			r16
         ret
 
-/*
-LCD_display_1_byte_number:
-	push	r16							; for divisor
-	;push	r17							; for dividend (remainder)
-	push	r18							; for quotient
-	; push	r29						; for non leading zero flag
-	; mov		r17,			num
-	
-	ldi		r16,			100
-	rcall   extract_digit			; Call function to extract and display digits (by power of 10)
-
-	ldi		r16,			10
-	rcall   extract_digit			; Call function to extract and display digits (by power of 10)
-
-	ldi		r16,			1
-	rcall   extract_digit			; Call function to extract and display digits (by power of 10)
-	; rjmp    display_done
-
-	display_done:
-		; pop			r29
-		pop			r18
-		;pop			r17
-		pop			r16
-		ret
-
-	extract_digit:
-		ldi     r18, 0                      ; Clear r18 for quotient
-		
-		divide_loop:
-			cp     r17, r16                     ; Compare dividend with divisor
-			brmi    store_digit                 ; If less than divisor, store digit
-			sub    r17, r16                     ; Subtract divisor from dividend
-			inc     r18                         ; Increment quptient
-			rjmp    divide_loop                 ; Repeat division
-
-		store_digit:
-			subi    r18, -'0'                   ; Convert quotient to ASCII
-			DO_LCD_DATA_REGISTER r18      ; Send digit to LCD
-			ret
-*/
-
-
-
 LCD_display_1_byte_number_from_r17:
 	push	r16							; for divisor
 	;push	r17							; for dividend (remainder)
@@ -173,14 +130,4 @@ LCD_display_1_byte_number_from_r17:
 			subi    r18, -'0'                   ; Convert quotient to ASCII
 			DO_LCD_DATA_REGISTER r18      ; Send digit to LCD
 
-		ret
-
-	
-
-
-LCD_dummy_func:
-	rcall dum
-	ret
-	dum:
-		cp r17,r16
 		ret

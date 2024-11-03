@@ -13,7 +13,7 @@
 
 .def temp = r16
 .def leds = r19
-.def num = r17
+; .def num = r17
 
 .include "lcd_defs.asm"
 

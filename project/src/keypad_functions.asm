@@ -1,16 +1,22 @@
 ; keypad set up, executed only once
 setup_keypad:
+	push temp1
 	ldi			temp1,			PORTLDIR				; 
 	STS			DDRL,			temp1					; set high bits of port L to output, and low bits to input
+	pop temp1
 	ret
 
-scan_start:
+; keep scanning for input from keypad
+; if there is input, as of now, output through port C
+keypad_scan_loop:
+	rcall keypad_scan_loop_prologue
+
 	ldi			cmask,			INITCOLMASK				; set cmask to 0b11101111
 	clr			col										; set initial column number to 0
 
 	colloop:
 		cpi			col,			4						; if we have scanned all 4 columns, 
-		breq		scan_start								; continue
+		breq		keypad_scan_loop								; continue
 															; else, start scanning the "col"th column
 		STS			PORTL,			cmask					; ouput 0 to the column that we wish to scan
 		rcall		sleep_5ms
@@ -81,11 +87,32 @@ scan_start:
 		zero:
 			ldi			temp1,			'0'						; set to zero
 		
-convert_end:
-	out			PORTC,			temp1					; write value to PORTC
-	; do_lcd_data_from_register	temp1
-	mov			input,			temp1
-	rcall		sleep_125ms
-	; do_lcd_command				0b00000010				; Return home: The cursor moves to the top left corner
-	;jmp			scan_start								; restart main loop
+	convert_end:
+		mov 		r16, 			temp1
+		; out			PORTC,			temp1					; write value to PORTC
+		; do_lcd_data_from_register	temp1
+		; mov			input,			temp1
+		rcall		sleep_125ms
+		; do_lcd_command				0b00000010				; Return home: The cursor moves to the top left corner
+		;jmp			scan_start								; restart main loop
+		
+	rcall keypad_scan_loop_epilogue
 	ret				
+
+keypad_scan_loop_prologue:
+	push r20
+	push r21
+	push r22
+	push r23
+	push r24
+	push r25
+	ret
+
+keypad_scan_loop_epilogue:
+	pop r25
+	pop r24
+	pop r23
+	pop r22
+	pop r21
+	pop r20
+	ret
