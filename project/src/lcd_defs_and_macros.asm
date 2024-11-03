@@ -19,7 +19,6 @@
 	cbi			PORTA,			@0
 .endmacro
 
-
 .macro LCD_GO_HOME
 	DO_LCD_COMMAND 0b00000010 	; return home
 .endmacro
@@ -52,6 +51,16 @@
 	rcall		lcd_data
 	rcall		lcd_wait
 	pop r16
+.endmacro
+
+.macro DO_LCD_DATA_MEMORY_ONE_BYTE
+	DATA_MEMORY_PROLOGUE
+	ldi YL, low(@0) ; load the memory address to Y
+	ldi YH, high(@0)
+	ld r24, Y
+	; subi r24, -'0'
+	DO_LCD_DATA_REGISTER r24
+	DATA_MEMORY_EPILOGUE
 .endmacro
 
 

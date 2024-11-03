@@ -15,6 +15,7 @@
 
 Temp_Counter:    		.byte 2 
 Seconds_Counter:		.byte 2
+keypad_Input:			.byte 1
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Interrupt Vectors ------------------------------------- ;
@@ -33,7 +34,20 @@ Seconds_Counter:		.byte 2
 RESET:
 	CLEAR_TWO_BYTE_IN_DATA_MEMORY Temp_Counter ; Initialize the counter to 0
 	CLEAR_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
-    rcall interupt_setup
+	CLEAR_TWO_BYTE_IN_DATA_MEMORY keypad_Input
+    
+	rcall interupt_setup
+	rcall setup_LCD
+	rcall setup_keypad
+	
+	DO_LCD_DATA_IMMEDIATE 'R'
+	DO_LCD_DATA_IMMEDIATE 'E'
+	DO_LCD_DATA_IMMEDIATE 'S'
+	DO_LCD_DATA_IMMEDIATE 'T'
+	DO_LCD_DATA_IMMEDIATE 'A'
+	DO_LCD_DATA_IMMEDIATE 'R'
+	DO_LCD_DATA_IMMEDIATE 'T'
+
 	rjmp main 
 
 Timer0OVF: ; interrupt subroutine for Timer0
@@ -81,12 +95,10 @@ Timer0OVF: ; interrupt subroutine for Timer0
 ; --------------------------------------------------------------------------------------------------------------- ;
 
 main:
-
-	rcall setup_LCD
-
+	; set up led
 	ser r16 ; set Port C as output
 	out DDRC, r16
-	ldi r16, 0b11111111	; out put 0b00001111 to leds
+	ldi r16, 0b10101010	; out put 0b00001111 to leds
 	out PORTC, r16
 
 	; Port D Pin 7 => RDX4 => OpO, OpO falling edge when 1/4 circule spinned
@@ -96,7 +108,18 @@ main:
 	out PORTD, r16
 
 infinite_loop:
+	
+	; DO_LCD_DATA_IMMEDIATE 'A'
+	SCAN_KEYPAD_INPUT_AS_ASCII_TO_DATA_MEMORY keypad_Input
+	REFRESH_LCD
+	DO_LCD_DATA_MEMORY_ONE_BYTE keypad_Input
+	; rjmp load_keypad_input_to_seconds_counter
+	; here:
+	rcall load_keypad_input_to_seconds_counter
     rjmp infinite_loop
+
+halt:
+	rjmp halt
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Subrutines ------------------------------------------- ;
@@ -123,7 +146,21 @@ interupt_setup:
 show_Seconds_Counter_data:
 	REFRESH_LCD
 	DO_LCD_DISPLAY_2_BYTE_NUMBER_FROM_DATA_MEMEORY_ADDRESS Seconds_Counter
+	; DO_LCD_DATA_MEMORY_ONE_BYTE keypad_Input
 	ret
+
+load_keypad_input_to_seconds_counter:
+	DATA_MEMORY_PROLOGUE
+	ldi YL, low(keypad_Input) 
+	ldi YH, high(keypad_Input)
+	ld r16, Y
+	ldi YL, low(Seconds_Counter) 
+	ldi YH, high(Seconds_Counter)
+	subi r16, '0'
+	st Y, r16
+	DATA_MEMORY_EPILOGUE
+	ret
+	; rjmp here
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Functions ------------------------------------------- ;

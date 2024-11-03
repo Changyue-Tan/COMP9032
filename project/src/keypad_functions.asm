@@ -6,15 +6,23 @@ setup_keypad:
 	pop temp1
 	ret
 
+/*
 ; keep scanning for input from keypad
 ; if there is input, as of now, output through port C
 keypad_scan_loop:
-	rcall keypad_scan_loop_prologue
+	; DO_LCD_DATA_IMMEDIATE 'A'
+	push r20
+	push r21
+	push r22
+	push r23
+	push r24
+	push r25
 
 	ldi			cmask,			INITCOLMASK				; set cmask to 0b11101111
 	clr			col										; set initial column number to 0
 
 	colloop:
+		; DO_LCD_DATA_IMMEDIATE 'A'
 		cpi			col,			4						; if we have scanned all 4 columns, 
 		breq		keypad_scan_loop								; continue
 															; else, start scanning the "col"th column
@@ -32,6 +40,7 @@ keypad_scan_loop:
 		clr			row										; initial row = 0
 
 		rowloop:
+			; DO_LCD_DATA_IMMEDIATE 'A'
 			cpi			row,			4						; check if we have scanned all 4 rows
 			breq		nextcol									; if yes, scan next column
 																; else, scan this row
@@ -89,30 +98,21 @@ keypad_scan_loop:
 		
 	convert_end:
 		mov 		r16, 			temp1
+		DO_LCD_DATA_REGISTER r16
 		; out			PORTC,			temp1					; write value to PORTC
 		; do_lcd_data_from_register	temp1
 		; mov			input,			temp1
-		rcall		sleep_125ms
+		rcall		sleep_625ms
 		; do_lcd_command				0b00000010				; Return home: The cursor moves to the top left corner
 		;jmp			scan_start								; restart main loop
 		
-	rcall keypad_scan_loop_epilogue
-	ret				
-
-keypad_scan_loop_prologue:
-	push r20
-	push r21
-	push r22
-	push r23
-	push r24
-	push r25
-	ret
-
-keypad_scan_loop_epilogue:
 	pop r25
 	pop r24
 	pop r23
 	pop r22
 	pop r21
 	pop r20
-	ret
+
+	ret				
+*/
+
