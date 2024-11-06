@@ -18,20 +18,24 @@ Patient_Name:			.byte 10		; a char array with length of 10
 
 .cseg
 
+start:
+	rjmp main
+
+.include "patients_queue_functions.asm"
+
 main:
-	INITIALISE_QUEUE
+	rcall initialise_queue
 	; ...
 	; do something to get input from keypad
 	; ...
 	
-	ENQUEUE 							; add patinet stored at Patient_Name to the end of the queue
-	; Last_Patient_Number will be updated, can be used for the end of Entry Mode
+	rcall enqueue 								; add patinet stored at Patient_Name to the end of the queue
+	; Last_Patient_Number will be updated, can be used for the end of Entry Mode, when giving patient a number
 	
 	; ...
 	; doctor is serving the next patient
 	; ...
 
-	DEQUEUE								; remove the next patient at the front of the queue
+	rcall dequeue								; remove the next patient at the front of the queue
 	; Next_Patient_Number will be updated, and can be used for display mode
 
-.include "patients_queue_functions.asm"
