@@ -134,7 +134,7 @@ LCD_display_1_byte_number:
 			subi    r18, -'0'                   ; Convert quotient to ASCII
 			DO_LCD_DATA_REGISTER r18      ; Send digit to LCD
 			ret
-*/
+
 
 
 
@@ -184,3 +184,4 @@ LCD_dummy_func:
 	dum:
 		cp r17,r16
 		ret
+*/

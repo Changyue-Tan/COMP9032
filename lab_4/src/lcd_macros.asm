@@ -41,6 +41,7 @@
 	rcall		lcd_wait
 .endmacro
 
+/*
 .macro DO_LCD_DISPLAY_1_BYTE_NUMBER_FROM_DATA_MEMEORY_ADDRESS
 	push	YH
 	push	YL 
@@ -60,3 +61,4 @@
 	push	YL
 	push	YH
 .endmacro
+*/
