@@ -36,6 +36,16 @@
 														; DB2 (D) = 1: Display on
 														; DB1 (C) = 1: Cursor on
 														; DB0 (B) = 0: Cursor blink off
+
+    DO_LCD_DATA_IMMEDIATE 'R'
+    DO_LCD_DATA_IMMEDIATE 'E'
+    DO_LCD_DATA_IMMEDIATE 'S'
+	DO_LCD_DATA_IMMEDIATE 'T'
+    DO_LCD_DATA_IMMEDIATE 'A'
+    DO_LCD_DATA_IMMEDIATE 'R'
+    DO_LCD_DATA_IMMEDIATE 'T'
+	rcall sleep_1000ms
+	REFRESH_LCD
 	ret
 
 

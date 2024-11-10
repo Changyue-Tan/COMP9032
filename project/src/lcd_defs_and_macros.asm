@@ -23,15 +23,31 @@
 	DO_LCD_COMMAND 0b00000010 	; return home
 .endmacro
 
-
 .macro REFRESH_LCD
 	DO_LCD_COMMAND 0b00000001 	; clear display
 	LCD_GO_HOME
 .endmacro
 
+; move cursor to index @0
+.macro LCD_MOVE_CURSOR_TO
+	push r16
+	ldi  r16, 0b10000000
+	add	 r16, @0
+	DO_LCD_COMMAND_REGISTER r16 	
+	pop r16
+.endmacro
+
 .macro DO_LCD_COMMAND
 	push r16
 	ldi			r16,			@0
+	rcall		lcd_command
+	rcall		lcd_wait
+	pop r16
+.endmacro
+
+.macro DO_LCD_COMMAND_REGISTER 
+	push r16
+	mov			r16,			@0
 	rcall		lcd_command
 	rcall		lcd_wait
 	pop r16
