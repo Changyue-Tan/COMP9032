@@ -44,7 +44,7 @@
     DO_LCD_DATA_IMMEDIATE 'A'
     DO_LCD_DATA_IMMEDIATE 'R'
     DO_LCD_DATA_IMMEDIATE 'T'
-	rcall sleep_1000ms
+	rcall sleep_500ms
 	REFRESH_LCD
 	ret
 

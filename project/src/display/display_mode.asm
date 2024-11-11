@@ -1,4 +1,4 @@
-; displayMode.asm
+.equ 10 = 10             ; 姓名最大长度; displayMode.asm
 ; Subroutine to display "Next Patient:" on the first line
 ; and the 10-character name plus patient ID on the second line of the LCD.
 ; setup_LCD should be called in the main program
@@ -7,6 +7,8 @@
 
 .include "lcd_defs_and_macros.asm"
 ;.include "main.asm"
+
+/*
 .equ MAX_NAME_LENGTH = 10             ; 姓名最大长度
 .def temp_char = r16                   ; 临时字符寄存器
 .def loop_counter = r17                ; 循环计数器寄存器
@@ -14,7 +16,7 @@
 .def temp_id = r19                     ; 临时ID寄存器
 .def temp = r20                        ; 临时寄存器
 .def leds = r21                        ; LED寄存器
-
+*/
 
 /*.cseg
 start:
@@ -78,22 +80,22 @@ displayMode:
     mov     ZH, r25
 
     ; 初始化循环计数器为10
-    ldi     loop_counter, MAX_NAME_LENGTH  ; 循环计数10次
+    ldi     r17, 10  ; 循环计数10次
 
 display_name_loop_fixed:
-    ld      temp_char, Z+                   ; 从 Next_Patient 指向的位置读取一个字符到 temp_char
-    DO_LCD_DATA_REGISTER temp_char         ; 显示字符到LCD
-    dec     loop_counter                     ; 递减计数器
+    ld      r16, Z+                   ; 从 Next_Patient 指向的位置读取一个字符到 r16
+    DO_LCD_DATA_REGISTER r16         ; 显示字符到LCD
+    dec     r17                     ; 递减计数器
     brne    display_name_loop_fixed          ; 如果未完成10次，继续循环
 
     ; 添加3个空格用于分隔姓名和编号
-    ldi     loop_counter, 3                  ; 设置循环计数为3
+    ldi     r17, 3                  ; 设置循环计数为3
 add_spaces_loop_fixed:
-    cpi     loop_counter, 0                  ; 检查是否完成3次
+    cpi     r17, 0                  ; 检查是否完成3次
     breq    display_id_fixed                 ; 如果完成，跳转到显示ID
-    ldi     temp_char, ' '                   ; 加载空格字符
-    DO_LCD_DATA_REGISTER temp_char         ; 显示空格到LCD
-    dec     loop_counter                      ; 递减计数器
+    ldi     r16, ' '                   ; 加载空格字符
+    DO_LCD_DATA_REGISTER r16         ; 显示空格到LCD
+    dec     r17                      ; 递减计数器
     rjmp    add_spaces_loop_fixed             ; 继续循环
 
 ; 显示患者编号

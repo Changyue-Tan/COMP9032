@@ -28,6 +28,7 @@
 	LCD_GO_HOME
 .endmacro
 
+/*
 ; move cursor to index @0
 .macro LCD_MOVE_CURSOR_TO
 	push r16
@@ -36,6 +37,7 @@
 	DO_LCD_COMMAND_REGISTER r16 	
 	pop r16
 .endmacro
+*/
 
 .macro DO_LCD_COMMAND
 	push r16
@@ -79,6 +81,25 @@
 	DATA_MEMORY_EPILOGUE
 .endmacro
 
+; @0 is address in program space
+.macro LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE
+	push ZL
+	push ZH
+	push r16
+	start_display_string:
+		ldi ZL, low(@0<<1) 
+		ldi ZH, high(@0<<1)
+	dispaly_char_in_str:
+		lpm r16, Z+
+		cpi r16, 0
+		breq finish_display_string
+		DO_LCD_DATA_REGISTER r16
+		rjmp dispaly_char_in_str
+	finish_display_string:
+	pop r16
+	pop ZH
+	pop ZL
+.endmacro
 
 .macro DO_LCD_DISPLAY_2_BYTE_NUMBER_FROM_DATA_MEMEORY_ADDRESS
 	push YH ; Save all conflict registers in the prologue.
@@ -150,3 +171,4 @@
         pop YL
         pop YH
 .endmacro
+
