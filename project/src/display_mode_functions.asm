@@ -77,6 +77,8 @@ display_next_patient:
     LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Display_Mode_Message
     DO_LCD_COMMAND 0xC0                  ; 设置DDRAM地址为0x40
 
+    rcall strobe_on
+
     ldi     ZL, low(Next_Patient)
     ldi     ZH, high(Next_Patient)
     DISPLAY_PATIENT_INFO

@@ -59,6 +59,7 @@ Entry_Confirm_Flag:     .byte 1
 .include "display_mode_functions.asm"
 .include "entry_mode_functions.asm"
 .include "blink_functions.asm"
+.include "strobe.asm"
 
 ; --------------------------------------------------------------------------------------------------------------- 
 ; ---------------------------------------------- Program Memroy Constants --------------------------------------------- 
@@ -133,7 +134,7 @@ RESET:
 	ser r16 ; set Port C & G as output
 	out DDRC, r16
     out DDRG, r16
-	ldi r16, 0xFF
+	ldi r16, 0x00
 	out PORTC, r16
     out PORTG, r16
 
@@ -150,6 +151,7 @@ EXT_INT0:
     push    r16
     in      r16,    SREG
     push    r16
+    push    r17
     ; push    r2                 ; to store blink low/high
     DATA_MEMORY_PROLOGUE
 
@@ -169,6 +171,22 @@ EXT_INT0:
 	out EIMSK, r16
     sei                                     ; allow timer interrupt to continue
 
+    check_if_there_is_next_patient:
+        ldi YL, low(Next_Patient_Number) 
+        ldi YH, high(Next_Patient_Number)
+        ld r16, Y                          ; r16 = Next_Patient_Number
+        ldi YL, low(Last_Patient_Number) 
+        ldi YH, high(Last_Patient_Number)
+        ld  r17, Y                          ; r17 = Last_Patient_Number
+        ; if Last_Patient_Number < Next_Patient_Number, then no patient in queue
+        cp r17, r16
+        ; if no patient in queue, exit interupt
+        brmi exit_INT0
+        rjmp calling_next_patient
+
+        exit_INT0:
+            rjmp end_of_INT0
+
     calling_next_patient:
         rcall sleep_125ms
         rcall display_next_patient
@@ -187,6 +205,8 @@ EXT_INT0:
         rcall dequeue
         rcall display_next_patient
         rcall sleep_1000ms
+        ; reset counter to count how many seconds has passed
+        CLEAR_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
         rjmp  end_of_INT0
 
     start_check_cancle_a:
@@ -317,9 +337,10 @@ EXT_INT0:
 
         return_to_entry_mode:
             rcall sleep_5000ms
+            rcall strobe_off
             REFRESH_LCD
             LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Prompt
-            DO_LCD_COMMAND 0xC0 
+            DO_LCD_COMMAND 0xC0
 
             ldi         YL, low(temp_name)
             ldi         YH, high(temp_name)
@@ -336,6 +357,7 @@ EXT_INT0:
 
         return_to_entry_confirm_mode:
             rcall sleep_5000ms
+            rcall strobe_off
             REFRESH_LCD
             LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Complete_Message
             DO_LCD_COMMAND 0xC0  
@@ -359,6 +381,7 @@ EXT_INT0:
 
         DATA_MEMORY_EPILOGUE
         ; pop r2
+        pop r17
         pop r16
         out SREG, r16
         pop r16
@@ -429,10 +452,25 @@ Timer0OVF: ; interrupt subroutine for Timer0
 		reti ; Return from the interrupt.
 
     update_timers:
+        DATA_MEMORY_PROLOGUE
+        push r18
+        push r17
+        push r0
+        push r1
+
+        rcall display_remaining_time
+
         INCREMENT_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
         INCREMENT_ONE_BYTE_IN_DATA_MEMORY Blink_Timer
         ; INCREMENT_ONE_BYTE_IN_DATA_MEMORY Button_Hold_Timer
-        ret
+
+        update_timers_end:
+            pop r1
+            pop r0
+            pop r17
+            pop r18
+            DATA_MEMORY_EPILOGUE
+            ret
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Main Program ------- ---------------------------------- ;
@@ -473,4 +511,63 @@ interupt_setup:
     ret
 
 
+display_remaining_time:
+ ; every time seconds_timer is updated, update remaining time to LED
+        ldi YL, low(Seconds_Counter) 
+        ldi YH, high(Seconds_Counter)
+        ld r24, Y
+        
+        cpi r24, 20                 ; if time elapsed >= 20 
+        brsh time_is_up
+        ; r24 < 20 from here
+
+        ldi r16, 20
+        sub r16, r24                ; r16 = remaining time 
+        subi r16, -1                ; add 1 to account for first update to led happens at t = 1, not 0
+        ldi r17, 10
+        mul r16, r17                ; result in r1:r0
+        mov r16, r0                 ; r16 = remaining time * 10
+
+        ; out portc, r16
+
+        clr r17                     ; store quotient
+        ; implementation of r16 / 20
+        keep_minus_20:
+            cpi r16, 20          
+            brlo divided_by_20_finish    
+            
+            continue_minus_20:
+                subi r16, 20
+                inc r17
+                rjmp keep_minus_20
+
+        divided_by_20_finish:
+
+        mov r16, r17    ; r16 is now the quotient, number of leds to be on
+        out portc, r16
+; /*
+        clr r17               ; display pattern for leds 0-7
+        clr r18               ; display pattern for leds 8-9
+
+        make_bit_loop_start:
+            dec r16           ; Decrement r16
+            brmi make_bit_loop_end         ; If r16 < 0, exit the loop
+            lsl r17           ; Shift r17 left by 1 bit
+            rol r18           ; Rotate left through carry into r18
+            ori r17, 1        ; Set the least significant bit of r17
+            rjmp make_bit_loop_start   ; Repeat the loop
+        make_bit_loop_end:
+
+        out PORTC, r17
+        ; lsl r18                ; algin bits 
+        out PORTG, r18
+
+; */
+        rjmp display_remaining_time_end
+
+        time_is_up:
+            rcall led_bell_low
+        
+        display_remaining_time_end:
+            ret
 

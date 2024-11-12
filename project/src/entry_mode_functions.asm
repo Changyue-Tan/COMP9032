@@ -55,13 +55,15 @@
 ; 主程序
 start_entry_mode:
     ENTRY_MODE_PROLOGUE
-
     INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag
 
+    rcall strobe_off
+
+initialise_entry_mode: 
     REFRESH_LCD
     LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Prompt
     DO_LCD_COMMAND 0xC0                                     ; move cursor to second line
-                                                            ; 0x40 + 0b10000000 = 0xC0
+                                                           ; 0x40 + 0b10000000 = 0xC0
     clr         r22
     clr         r23
     clr         r24
@@ -70,7 +72,7 @@ start_entry_mode:
     ldi         YH, high(temp_name)
     ldi         r17 , 10
     clear_temp_name_loop:
-        ldi         r18, ' '    ; 空格的ASCII码
+        ldi         r18, ' '    
         st          Y+, r18
         dec         r17 
         brne        clear_temp_name_loop
@@ -79,7 +81,7 @@ start_entry_mode:
     ldi         YH, high(Patient_Name)
     ldi         r17 , 10
     clear_Patient_Name_loop:
-        ldi         r18, ' '    ; 空格的ASCII码
+        ldi         r18, ' '    
         st          Y+, r18
         dec         r17 
         brne        clear_Patient_Name_loop
@@ -188,11 +190,35 @@ not_number:
     rjmp        main_loop
 
 clear_input:
-    jmp        start_entry_mode
+    jmp        initialise_entry_mode
 
 back_space:
-    ; decrease letter index in name
+    ;decrease letter index in name
     dec         r22
+    ; clear char at temp_name[r22]
+    ldi         YL, low(temp_name)
+    ldi         YH, high(temp_name)
+    add         YL, r22
+    ldi         r16, ' '
+    st          Y, r16
+/*
+    ; move cursor to bottom left
+    ldi         r16, 0xC0
+    DO_LCD_COMMAND_REGISTER r16
+
+    ldi         YL, low(temp_name)
+    ldi         YH, high(temp_name)
+    print_until_space:
+        ld          r16 , Y+
+        cpi         r16, ' '
+        breq        print_until_space_end
+        DO_LCD_DATA_REGISTER r16
+        rjmp print_until_space
+    print_until_space_end:
+        rjmp        main_loop
+*/ 
+
+; /*
     ; move cursor backwards
     ldi         r16, 0xC0                   ; start of second line 
     add         r16, r22       
@@ -204,6 +230,7 @@ back_space:
     add         r16, r22           
     DO_LCD_COMMAND_REGISTER r16
     rjmp        main_loop
+; */
 
 accept_letter:
     ldi         YL, low(temp_name)
