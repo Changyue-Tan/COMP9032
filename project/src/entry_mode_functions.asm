@@ -56,6 +56,8 @@
 start_entry_mode:
     ENTRY_MODE_PROLOGUE
 
+    INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag
+
     REFRESH_LCD
     LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Prompt
     DO_LCD_COMMAND 0xC0                                     ; move cursor to second line
@@ -219,6 +221,8 @@ accept_letter:
     rjmp        main_loop
 
 commit_name:
+    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag
+    INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag
     ; 复制temp_name到Patient_Name
     ldi         ZL, low(temp_name)
     ldi         ZH, high(temp_name)
@@ -256,6 +260,8 @@ display_Patient_Name:
     ;    rjmp stop
 
     ; jmp start_entry_mode
-    
+    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag
+
+
 ENTRY_MODE_EPILOGUE
 ret

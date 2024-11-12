@@ -4,7 +4,7 @@
 .include "data_memory_macros.asm"
 .include "keypad_defs_and_macros.asm"
 .include "lcd_defs_and_macros.asm"
-.include "blink_defs_and_macros.asm"
+; .include "blink_defs_and_macros.asm"
 
 
 ; --------------------------------------------------------------------------------------------------------------- 
@@ -28,16 +28,24 @@ Last_Patient_Number:	.byte 1			; a number between 0 - 255
 Temp_Counter:    		.byte 2 
 Seconds_Counter:		.byte 2
 
+; for blink interval  
+Blink_Timer:            .byte 1
+
+; to determine if it is now entry mode
+Entry_Mode_Flag:        .byte 1
+Entry_Confirm_Flag:     .byte 1
+
 .cseg
 
 .org 0x0000
 	rjmp RESET           
 
 .org INT0addr
-    rjmp EXT_INT0                ; INT0 ????
-
+    rjmp EXT_INT0                
+/*
 .org INT1addr
     rjmp EXT_INT1  
+*/
 
 .org OVF0addr
 	jmp Timer0OVF ; Jump to the interrupt handler for Timer0 overflow. 
@@ -50,6 +58,7 @@ Seconds_Counter:		.byte 2
 .include "patients_queue_functions.asm"
 .include "display_mode_functions.asm"
 .include "entry_mode_functions.asm"
+.include "blink_functions.asm"
 
 ; --------------------------------------------------------------------------------------------------------------- 
 ; ---------------------------------------------- Program Memroy Constants --------------------------------------------- 
@@ -111,6 +120,8 @@ key9_letters:
 RESET:
     CLEAR_TWO_BYTE_IN_DATA_MEMORY Temp_Counter ; Initialize the counter to 0
 	CLEAR_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
+    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag
+    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag
 	; CLEAR_TWO_BYTE_IN_DATA_MEMORY keypad_Input
 
     rcall interupt_setup
@@ -119,56 +130,241 @@ RESET:
     rcall initialise_queue
 
     ; set up led
-	ser r16 ; set Port C as output
+	ser r16 ; set Port C & G as output
 	out DDRC, r16
-	ldi r16, 0b10101010	
+    out DDRG, r16
+	ldi r16, 0xFF
 	out PORTC, r16
+    out PORTG, r16
+
+    ; pull up for port D (push buttons)
+    clr    r16
+    out    DDRD, r16
+    ser    r16
+    out    PORTD, r16
     
     rjmp main
 
 EXT_INT0:
-    rcall sleep_125ms
-    push r16
-    in r16, SREG
-    push r16
-    
-    ldi r16, (2<<ISC10) ; set INT0 as falling edge triggered interrupt
+    rcall   sleep_125ms
+    push    r16
+    in      r16,    SREG
+    push    r16
+    ; push    r2                 ; to store blink low/high
+    DATA_MEMORY_PROLOGUE
+
+    ; clr     r16
+    ; mov     r2,     r16     
+/*
+    ldi r16, (2<<ISC10) ; set INT1 as falling edge triggered interrupt
 	sts EICRA, r16 ; Store Direct to data space
 	; enable INT1
     in r16, EIMSK 
 	ori r16, (1<<INT1)
 	out EIMSK, r16
+*/ 
+    ; disable INT0, we dont want INT0 to be trigger again
+    in r16, EIMSK
+	andi r16, ~(1<<INT0)
+	out EIMSK, r16
+    sei                                     ; allow timer interrupt to continue
 
-    rcall display_next_patient
-    ; sei
-
-    clr    r16
-    out    DDRD, r16
-    ser    r16
-    out    PORTD, r16
-
-    pattern_a:
-        sbis    PIND, 1
-        rjmp    cancle_appointment
-        ; LED1
-        rjmp pattern_a
-    
-    cancle_appointment:
+    calling_next_patient:
         rcall sleep_125ms
+        rcall display_next_patient
+        ; initilise blink_timer
+        ; blink_timer counts in intervals of 0.5 seconds
+        CLEAR_ONE_BYTE_IN_DATA_MEMORY Blink_Timer
+        rjmp pattern_a
+
+    cancle_appointment:
         rcall dequeue
         rcall display_next_patient
-        rjmp  pattern_a
+        rcall sleep_1000ms
+        rjmp  pattern_c
 
-    ; disable INT1
-    in r16, EIMSK
-	ori r16, (0<<INT1)
-	out EIMSK, r16
+    patient_arrives:
+        rcall dequeue
+        rcall display_next_patient
+        rcall sleep_1000ms
+        rjmp  end_of_INT0
 
-    pop r16
-    out SREG, r16
-    pop r16
-    reti
+    start_check_cancle_a:
+        rcall   sleep_1000ms
+        ser     r16
+        sbis    PIND, 1
+        clr     r16
+        cpi     r16, 0
+        breq    cancle_appointment
+        rjmp    finish_check_cancle_a
 
+    start_check_cancle_b:
+        rcall   sleep_1000ms
+        ser     r16
+        sbis    PIND, 1
+        clr     r16
+        cpi     r16, 0
+        breq    cancle_appointment
+        rjmp    finish_check_cancle_b
+
+    start_check_next_patient_a:
+        rcall   sleep_1000ms
+        ser     r16
+        sbis    PIND, 0
+        clr     r16
+        cpi     r16, 0
+        breq    patient_arrives
+        rjmp    finish_check_next_patient_a
+
+    start_check_next_patient_b:
+        rcall   sleep_1000ms
+        ser     r16
+        sbis    PIND, 0
+        clr     r16
+        cpi     r16, 0
+        breq    patient_arrives
+        rjmp    finish_check_next_patient_b
+    
+    pattern_a:
+        sbis    PIND, 1
+        rjmp    start_check_cancle_a
+        finish_check_cancle_a:
+
+        sbis    PIND, 0
+        rjmp    start_check_next_patient_a
+        finish_check_next_patient_a:
+
+        ldi     YL, low(Blink_Timer) 
+        ldi     YH, high(Blink_Timer)
+        ld      r24, Y
+        
+        ; check if 10 seconds passed
+        cpi     r24, 20
+        breq    pattern_b
+
+        mov     r16, r24
+        andi    r16, 0b00000011       ; mask out all bits except the last two
+        breq    multiples_of_4
+        
+        mov     r16, r24
+        subi    r16, -2
+        andi    r16, 0b00000011       ; mask out all bits except the last two       
+        breq    multiples_of_4_plus_two   
+        
+        rjmp    pattern_a
+
+        multiples_of_4:
+            rcall   led_bell_low
+            rjmp    pattern_a
+        multiples_of_4_plus_two:  
+            rcall   led_bell_high   
+            rjmp    pattern_a
+
+    pattern_b:
+        ; sbis    PIND, 1
+        ; rjmp    pattern_c
+        sbis    PIND, 1
+        rjmp    start_check_cancle_b
+        finish_check_cancle_b:
+        
+        sbis    PIND, 0
+        rjmp    start_check_next_patient_b
+        finish_check_next_patient_b:
+
+        ldi YL, low(Blink_Timer) 
+        ldi YH, high(Blink_Timer)
+        ld r24, Y
+
+        ; sbrs to check if the LSB is set (if set, odd number)
+        sbrc    r24, 0
+        rjmp    timer_odd
+
+        timer_even:
+            rcall   led_bell_low
+            rjmp    pattern_b
+        timer_odd:  
+            rcall   led_bell_high    
+            rjmp    pattern_b
+    
+    pattern_c:
+        ; rcall   sleep_125ms
+        rcall   led_bell_high
+        rcall   sleep_3000ms
+        rjmp    calling_next_patient
+
+
+    end_of_INT0:
+        ; slience the bell
+        rcall   led_bell_low
+        
+        ENTRY_MODE_PROLOGUE
+
+        ; if in entry mode: 
+        ldi YL, low(Entry_Mode_Flag) 
+        ldi YH, high(Entry_Mode_Flag)
+        ld r24, Y
+        cpi r24, 1
+        breq return_to_entry_mode
+
+        ; if in entry confirm mode:
+        ldi YL, low(Entry_Confirm_Flag) 
+        ldi YH, high(Entry_Confirm_Flag)
+        ld r24, Y
+        cpi r24, 1
+        breq return_to_entry_confirm_mode
+
+        rjmp INT0_epilogue
+
+        return_to_entry_mode:
+            rcall sleep_5000ms
+            REFRESH_LCD
+            LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Prompt
+            DO_LCD_COMMAND 0xC0 
+
+            ldi         YL, low(temp_name)
+            ldi         YH, high(temp_name)
+
+            print_entered_chars_to_LCD:
+                ld         r16 , Y+
+                cpi         r16, ' '
+                breq        end_of_return_to_entry_mode
+                DO_LCD_DATA_REGISTER r16
+                rjmp print_entered_chars_to_LCD
+
+            end_of_return_to_entry_mode:
+                rjmp INT0_epilogue
+
+        return_to_entry_confirm_mode:
+            rcall sleep_5000ms
+            REFRESH_LCD
+            LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Complete_Message
+            DO_LCD_COMMAND 0xC0  
+
+            rcall display_last_patient  
+
+            rjmp INT0_epilogue
+
+    INT0_epilogue:
+        ENTRY_MODE_EPILOGUE
+
+        ; Clear the interrupt flag for INT0
+        in   r16, EIFR
+        ori  r16, (1 << INTF0)
+        out  EIFR, r16
+
+        ; Re-enable INT0 interrupt
+        in   r16, EIMSK
+        ori  r16, (1 << INT0)
+        out  EIMSK, r16
+
+        DATA_MEMORY_EPILOGUE
+        ; pop r2
+        pop r16
+        out SREG, r16
+        pop r16
+        reti
+
+/*
 EXT_INT1:
     rcall sleep_125ms
     push r16
@@ -183,6 +379,7 @@ EXT_INT1:
     out SREG, r16
     pop r16
     reti
+*/
 
 Timer0OVF: ; interrupt subroutine for Timer0
 	push r16 ; Prologue starts.
@@ -196,14 +393,21 @@ Timer0OVF: ; interrupt subroutine for Timer0
 	ldi YH, high(Temp_Counter)
 	ld r24, Y+ 
 	ld r25, Y
-
-	cpi r24, low(1000) 
-	brne continue_counting
-	cpi r25, high(1000) 
-	brne continue_counting
-	
-	INCREMENT_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
-
+; /*
+     update_blink_timer:
+        cpi r24, low(500) 
+        brne update_seconds_counter
+        cpi r25, high(500) 
+        brne update_seconds_counter
+        INCREMENT_ONE_BYTE_IN_DATA_MEMORY Blink_Timer
+; */
+    update_seconds_counter:
+        cpi r24, low(1000) 
+        brne continue_counting
+        cpi r25, high(1000) 
+        brne continue_counting
+        rcall update_timers
+/*
 	; use the LED bars as a couner 
 	DATA_MEMORY_PROLOGUE
 	ldi YL, low(Seconds_Counter) 
@@ -211,7 +415,7 @@ Timer0OVF: ; interrupt subroutine for Timer0
 	ld r24, Y
 	out PORTC, r24
 	DATA_MEMORY_EPILOGUE
-
+*/
 	; rcall show_Seconds_Counter_data
 	
 	; reset the counter that counts for 1 second
@@ -224,6 +428,11 @@ Timer0OVF: ; interrupt subroutine for Timer0
 		pop r16
 		reti ; Return from the interrupt.
 
+    update_timers:
+        INCREMENT_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
+        INCREMENT_ONE_BYTE_IN_DATA_MEMORY Blink_Timer
+        ; INCREMENT_ONE_BYTE_IN_DATA_MEMORY Button_Hold_Timer
+        ret
 
 ; --------------------------------------------------------------------------------------------------------------- ;
 ; ------------------------------------------------------- Main Program ------- ---------------------------------- ;

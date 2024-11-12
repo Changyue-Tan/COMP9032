@@ -8,7 +8,7 @@
 
 ;first r17: 1 second on then 1 second off
 .macro	LED1
-	ldi r21, 0x03	;0x0C
+	; ldi r21, 0x03	;0x0C
 	; out PORTG, r21
 	ser r21
 	out PORTC, r21

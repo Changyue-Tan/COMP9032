@@ -65,3 +65,11 @@ sleep_3000ms:
 	rcall		sleep_1000ms
 	rcall		sleep_1000ms
 	ret
+
+sleep_5000ms:
+	rcall		sleep_1000ms
+	rcall		sleep_1000ms
+	rcall		sleep_1000ms
+	rcall		sleep_1000ms
+	rcall		sleep_1000ms
+	ret
