@@ -209,6 +209,8 @@ EXT_INT0:
         CLEAR_TWO_BYTE_IN_DATA_MEMORY Seconds_Counter
         rjmp  end_of_INT0
 
+    ; canclation handled separately during pattern a and pattern b
+
     start_check_cancle_a:
         rcall   sleep_1000ms
         ser     r16
@@ -308,8 +310,10 @@ EXT_INT0:
     
     pattern_c:
         ; rcall   sleep_125ms
-        rcall   led_bell_high
+        rcall   led_bell_high   
+        cli                             ; stop interrupt to prevent led pattern disrupted by remaining time
         rcall   sleep_3000ms
+        sei
         rjmp    calling_next_patient
 
 
