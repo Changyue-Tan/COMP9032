@@ -1,3 +1,3 @@
 make clean
-# make 
-make program
+make 
+# make program

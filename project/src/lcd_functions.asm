@@ -127,7 +127,7 @@ LCD_display_1_byte_number_from_r17:
 		ret
 
 	extract_digit:
-		ldi     r18, 0                      ; Clear r18 for quotient
+		ldi     r18, 0                      	; Clear r18 for quotient
 		
 		divide_loop:
 			cp     r17, r16                     ; Compare dividend with divisor
@@ -138,6 +138,6 @@ LCD_display_1_byte_number_from_r17:
 
 		store_digit:
 			subi    r18, -'0'                   ; Convert quotient to ASCII
-			DO_LCD_DATA_REGISTER r18      ; Send digit to LCD
+			DO_LCD_DATA_REGISTER r18      		; Send digit to LCD
 
 		ret

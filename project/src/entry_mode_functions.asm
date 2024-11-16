@@ -4,13 +4,13 @@
 .def temp2           = r18
 .def temp3           = r19
 .def temp4           = r20
-.def input           = r21   ; 从键盘存储最近输入的内容
-.def name_index      = r22   ; 名字数组中的索引（0到9）
-.def last_key        = r23   ; 最后按下的键（'2'到'9'）
-.def letter_index    = r24   ; 当前键映射字母中的索引
-.def current_letter  = r25   ; 当前选定的字母
-.def temp_letter     = r26   ; 字母的临时存储
-.def temp_letter_num = r27   ; 当前键对应的字母数量
+.def input           = r21   
+.def name_index      = r22   
+.def last_key        = r23   
+.def letter_index    = r24   
+.def current_letter  = r25   
+.def temp_letter     = r26   
+.def temp_letter_num = r27   
 */
 
 .macro ENTRY_MODE_PROLOGUE
@@ -52,243 +52,190 @@
 .endmacro  
 
 
-; 主程序
 start_entry_mode:
     ENTRY_MODE_PROLOGUE
-    INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag
+    INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag       ; set Entry_Mode_Flag, so that when INT0 triggers, 
+                                                            ; we can return to where we left
+    rcall strobe_off                                        ; turn off strobe LED, signals that
+                                                            ; any update to LCD 1 will not be sent to LCD 2
+    initialise_entry_mode: 
+        REFRESH_LCD
+        LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Prompt
+        DO_LCD_COMMAND 0xC0                                     ; move cursor to start of second line
+                                                                ; 0x40 + 0b10000000 = 0xC0
+        clr         r22                                         ; index which letter in name string
+        clr         r23                                         ; last key pressed
+        clr         r24                                         ; index which letter a key is referring
 
-    rcall strobe_off
+        ldi         YL, low(temp_name)
+        ldi         YH, high(temp_name)                         ; Y points to first char in temp_name
+        ldi         r17 , 10
+        clear_temp_name_loop:                                   ; temp_name is initialised to be 10 spaces
+            ldi         r18, ' '    
+            st          Y+, r18
+            dec         r17 
+            brne        clear_temp_name_loop
 
-initialise_entry_mode: 
-    REFRESH_LCD
-    LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Prompt
-    DO_LCD_COMMAND 0xC0                                     ; move cursor to second line
-                                                           ; 0x40 + 0b10000000 = 0xC0
-    clr         r22
-    clr         r23
-    clr         r24
-    ; 初始化temp_name为全空格
-    ldi         YL, low(temp_name)
-    ldi         YH, high(temp_name)
-    ldi         r17 , 10
-    clear_temp_name_loop:
-        ldi         r18, ' '    
-        st          Y+, r18
-        dec         r17 
-        brne        clear_temp_name_loop
-
-    ldi         YL, low(Patient_Name)
-    ldi         YH, high(Patient_Name)
-    ldi         r17 , 10
-    clear_Patient_Name_loop:
-        ldi         r18, ' '    
-        st          Y+, r18
-        dec         r17 
-        brne        clear_Patient_Name_loop
-    
-    clr r17
+        ldi         YL, low(Patient_Name)
+        ldi         YH, high(Patient_Name)                      ; Y points to first char in Patient_Name
+        ldi         r17 , 10
+        clear_Patient_Name_loop:                                ; Patient_Name is initialised to be 10 spaces
+            ldi         r18, ' '    
+            st          Y+, r18
+            dec         r17 
+            brne        clear_Patient_Name_loop
+        
+        clr r17
 
 main_loop:
+    rcall       take_keypad_input                           ; input from keypad stored in r21
     
-    rcall       take_keypad_input         ; 从键盘获取输入的内容存储在r21中（r21）
-    ; 处理输入内容
-    cpi         r21, '2'
-    brlo        not_number
-    cpi         r21, '9'+ 1
-    brsh        not_number
+    cpi         r21, '2'                                
+    brlo        not_number                                  ; 1 is pressed, consider it not a number
 
-    ; 输入在'2'和'9'之间
-    cp          r21, r23
-    breq        same_key
-    ; 按下不同的键
-    mov         r23, r21
-    clr         r24
+    cpi         r21, '9'+ 1
+    brsh        not_number                                  ; letters or symbols are pressed
+
+    cp          r21, r23                                    ; compare with last pressed key
+    breq        same_key                                    ; if same key is pressed, branch
+                                                            ; else, different key is pressed
+    mov         r23, r21                                    ; move current pressed key to last pressed key 
+    clr         r24                                         ; letter_index reset to 0
     rjmp        display_current_letter
 
-same_key:
-    ; if same key is pressed, move cursor back to the previous one 
-    ldi         r16, 0xC0                   ; start of second line 
-    add         r16, r22                    
-    DO_LCD_COMMAND_REGISTER r16
-    inc         r24                         ; 
+    same_key:
+        ldi         r16, 0xC0                   ; move cursor back to the previous slot 
+        add         r16, r22                    ; by adding start of second line with index in string
+        DO_LCD_COMMAND_REGISTER r16
+        inc         r24                         ; inrement letter_index. Since same key is pressed, 
+                                                ; move to next letter referred by the repeatedly pressed key 
 
-display_current_letter:
+    display_current_letter:
+        mov         r18, r21                    ; move input from keypad (r21) to a temporary regiester 
+        subi        r18, '2'                    ; subtract ASCII of 2 from it to get the number on key pressed
+        lsl         r18                         ; r18 = r18 * 2, r18 is going to be used as an index of 
+                                                ; an array of pointers, each of them have 2 bytes in length 
+        ldi         ZL, low(key_offsets<<1)     ; Program memory is word addressed.
+        ldi         ZH, high(key_offsets<<1)    ; To address each byte in program memory
+                                                ; The address is doubled, 
+                                                ; if the doubled address has LSB = 0, addressed to the low byte
+                                                ; if the doubled address has LSB - 1, addressed to the high byte
+        clr         r1                          ; r1 will be used as 0
+        add         ZL, r18                     ; add the off set to the start address of array
+        adc         ZH, r1                      ; add the carry bit to the high byte
 
-    mov         r18, r21
-    ; DO_LCD_DATA_REGISTER r18
-    subi        r18, '2'
-    lsl         r18
+        lpm         r17, Z+                     ; r17:r18 is the address of struct contaitnig:
+        lpm         r18, Z                      ;   1. the number of letters reffered by this key
+                                                ;   2. the letter literals reffered by this key
+        mov         ZL, r17                     
+        mov         ZH, r18                     ; Z stores the address of the struct key_letters
 
-    ; 加载key_offsets的基地址到Z
-    ldi         ZL, low(key_offsets<<1)             ; program memory is addressed to each word (2 byte)
-                                                    ; with a 2 byte address space
-    ldi         ZH, high(key_offsets<<1)
+        lsl         ZL                          ; doublw the address again 
+        rol         ZH                          ; as program memory is word addressed
 
-    ; 将r18添加到Z
-    clr         r1
-    add         ZL, r18
-    adc         ZH, r1
+        lpm         r19, Z                      ; r19 stores the number of letters reffered by this key
 
-    ; 加载字母的地址到r17 :r18
-    lpm         r17 , Z+
-    lpm         r18, Z
-    ; r17 :r18为键所对应的字母的地址
+        cp          r24, r19                    ; if letter_index < number of letters reffered by this key
+        brlo        within_range                ; still in range
+        clr         r24                         ; else, reset letter_index to 0
 
-    ; 将r17 :r18加载到Z
-    mov         ZL, r17
-    mov         ZH, r18
+    within_range:
+        mov         r20, r24                    ; move letter_index to a temporary register
 
-    ; program memory is word addressed
-    lsl         ZL
-    rol         ZH
+                                                ; Now Z pointing to total number of letter in key
+        adiw        Z, 1                        ; Now Z pointing to padding 0
+        adiw        Z, 1                        ; Z pointing to the first letter (index 0)
 
-    ; 加载字母的数量到r19
-    lpm         r19, Z
-    ; r19为键所对应的字母的数量
+        add         ZL, r20                     ; add the index to Z
+        adc         ZH, r1                      ;
 
-    ; 比较r24和r19
-    cp          r24, r19
-    brlo        within_range
-    clr         r24
+        lpm         r25, Z                      ; load that letter indexed by letter_index to r25
+        
+        DO_LCD_DATA_REGISTER r25                ; display that letter to the LCD
 
-within_range:
-    ; 将r24添加到Z
-    mov         r20, r24
+        rjmp        main_loop                   ; waiting for next key press
 
-    ; Z pointing to total number of letter in key
-    adiw        Z, 1
-    ; Z pointing to padding 0
-    adiw        Z, 1
-    ; Z pointing to letter with index 0
+    not_number:                                 
+        cpi         r21, '#'                    ; if '#' is presssed
+        breq        accept_letter               ; the patients accepts this letter
+                                                ; and is ready to enter next letter
+        cpi         r21, 'D'                    ; if 'D' is presssed
+        breq        commit_name                 ; the patients accepts all letters entered so far
+                                                ; and is ready to confirm their name and patient number
+        cpi         r21, 'C'                    ; if 'C' is pressed
+        breq        clear_input                 ; clear all letters on LCD and temp_name
 
-    add         ZL, r20
-    adc         ZH, r1
+        cpi         r21, 'B'                    ; if 'B' is pressed
+        breq        back_space                  ; backspace
 
-    ; 读取字母
-    lpm         r25, Z
-    
-    DO_LCD_DATA_REGISTER r25
+        rjmp        main_loop                   ; waiting for next key press
 
-    rjmp        main_loop
+    clear_input:
+        jmp        initialise_entry_mode        ; effectively restart the entry mode
 
-not_number:
-    ; 检查是否按下'#'（接受字母）键
-    cpi         r21, '#'
-    breq        accept_letter
+    back_space:
+        dec         r22                         ; decrease name_index in name string
+        ldi         YL, low(temp_name)
+        ldi         YH, high(temp_name)
+        add         YL, r22
+        ldi         r16, ' '                    ; replace char at temp_name[name_index] with space
+        st          Y, r16
 
-    ; 检查是否按下'D'（保存名字）键
-    cpi         r21, 'D'
-    breq        commit_name
+        ldi         r16, 0xC0                   ; move cursor to start of second line
+        add         r16, r22                    ; move cursor right name_index steps
+        DO_LCD_COMMAND_REGISTER r16             ; this effectively moves the cursor bachward 1 slot
+        DO_LCD_DATA_IMMEDIATE ' '               ; print a space (replace the old char)
+                                                ; This increments the cursor
+        ldi         r16, 0xC0                   ; move cursor to start of second line
+        add         r16, r22                    ; move cursor right name_index steps
+        DO_LCD_COMMAND_REGISTER r16             ; this moves the cursor bachward 1 slot again
+        rjmp        main_loop                   ; waiting for next key press
 
-    cpi         r21, 'C'
-    breq        clear_input
+    accept_letter:
+        ldi         YL, low(temp_name)
+        ldi         YH, high(temp_name)
+        add         YL, r22                     ; add name_index to address of temp_name
+        adc         YH, r1
+        
+        st          Y, r25                      ; temp_name[name_index] <= letter indexed by letter_index
+        inc         r22                         ; name_index += 1 
+        
+        clr         r23                         ; reset last_key
+        clr         r24                         ; reset letter_index
 
-    cpi         r21, 'B'
-    breq        back_space
-
-    ; 其他键不做处理
-    rjmp        main_loop
-
-clear_input:
-    jmp        initialise_entry_mode
-
-back_space:
-    ;decrease letter index in name
-    dec         r22
-    ; clear char at temp_name[r22]
-    ldi         YL, low(temp_name)
-    ldi         YH, high(temp_name)
-    add         YL, r22
-    ldi         r16, ' '
-    st          Y, r16
-/*
-    ; move cursor to bottom left
-    ldi         r16, 0xC0
-    DO_LCD_COMMAND_REGISTER r16
-
-    ldi         YL, low(temp_name)
-    ldi         YH, high(temp_name)
-    print_until_space:
-        ld          r16 , Y+
-        cpi         r16, ' '
-        breq        print_until_space_end
-        DO_LCD_DATA_REGISTER r16
-        rjmp print_until_space
-    print_until_space_end:
-        rjmp        main_loop
-*/ 
-
-; /*
-    ; move cursor backwards
-    ldi         r16, 0xC0                   ; start of second line 
-    add         r16, r22       
-    DO_LCD_COMMAND_REGISTER r16
-    ; print a space
-    DO_LCD_DATA_IMMEDIATE ' '
-    ; move curosr backwards again
-    ldi         r16, 0xC0                   ; start of second line 
-    add         r16, r22           
-    DO_LCD_COMMAND_REGISTER r16
-    rjmp        main_loop
-; */
-
-accept_letter:
-    ldi         YL, low(temp_name)
-    ldi         YH, high(temp_name)
-    add         YL, r22
-    adc         YH, r1
-    ; 存储r25
-    st          Y, r25
-    ; 增加r22
-    inc         r22
-    ; 重置r23和r24
-    clr         r23
-    clr         r24
-
-    rjmp        main_loop
+        rjmp        main_loop                   ; waiting for next key press
 
 commit_name:
-    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag
-    INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag
-    ; 复制temp_name到Patient_Name
-    ldi         ZL, low(temp_name)
-    ldi         ZH, high(temp_name)
-    ldi         YL, low(Patient_Name)
-    ldi         YH, high(Patient_Name)
-    mov         r17,    r22
-    ; dec         r17
-    ; ldi         r17 , 10
-copy_name_loop:
-    ld          r18, Z+
-    st          Y+, r18
-    dec         r17 
-    brne        copy_name_loop
-    ; 显示Patient_Name
-    ; rcall       display_Patient_Name
-    ; rjmp        main_loop
-
-display_Patient_Name:
-    ; 显示Patient_Name
-
-    REFRESH_LCD
-    LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Complete_Message
-    DO_LCD_COMMAND 0xC0                  ; 设置DDRAM地址为0x40
+    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Mode_Flag              ; exiting Entry Mode entering stage
+    INCREMENT_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag       ; entering Entry Mode confirmation stage
     
-    rcall   enqueue
+    ldi         ZL, low(temp_name)
+    ldi         ZH, high(temp_name)             ; Z points to first char of temp_name
+    ldi         YL, low(Patient_Name)
+    ldi         YH, high(Patient_Name)          ; Y points to first char of Patient_Name
+    
+    mov         r17,    r22                     ; move name_index to temporary register
+    copy_name_loop:                             ; copy every char from temp_name to Patient_Name
+        ld          r18, Z+
+        st          Y+, r18
+        dec         r17 
+        brne        copy_name_loop      
 
-    rcall   display_last_patient
+    display_Patient_Name:
+        REFRESH_LCD
+        LCD_DISPLAY_STRING_FROM_PROGRAM_SPACE Entry_Mode_Complete_Message
+        DO_LCD_COMMAND 0xC0                     ; mvoe cursor to bottom left
+        
+        rcall   enqueue                         ; enqueue the patient whose name stored in Patient_Name
 
-    waitting_confirmation:
-        rcall   take_keypad_input
-        cpi     r21, 'D'
-        brne    waitting_confirmation
+        rcall   display_last_patient            ; dispaly the last patient name and patient number
 
-    ; stop:
-    ;    rjmp stop
+        waitting_confirmation:
+            rcall   take_keypad_input
+            cpi     r21, 'D'                    ; if 'D' is preseed, patient has confirmed
+            brne    waitting_confirmation
 
-    ; jmp start_entry_mode
-    CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag
-
+        CLEAR_ONE_BYTE_IN_DATA_MEMORY Entry_Confirm_Flag    ; exiting Entry Mode confirmation stage
 
 ENTRY_MODE_EPILOGUE
 ret

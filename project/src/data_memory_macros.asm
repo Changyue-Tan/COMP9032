@@ -1,5 +1,3 @@
-; Store to memory space can not be implemented as macro
-
 .macro DATA_MEMORY_PROLOGUE
 	push YL
 	push YH
@@ -15,6 +13,7 @@
 	pop YH
 	pop YL
 .endmacro
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Two byte operations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

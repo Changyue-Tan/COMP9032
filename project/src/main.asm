@@ -479,7 +479,7 @@ Timer0OVF:                                                                      
 
 main:
     rcall   display_next_patient                                                ; start with dispaly mode 
-    rcall   take_keypad_input
+    rcall   take_keypad_input                                                   ; input from keypad stored in r21
     cpi     r21, 'A'                                                            ; if 'A' is pressed on keypad
     brne    main
     rcall   start_entry_mode                                                    ; switch to entry mode

@@ -7,16 +7,10 @@ setup_keypad:
 	ret
 
 
-; 键盘扫描功能实现 (->r21)
 take_keypad_input:
-    ; ; 假设从某个端口（如PINA）读取输入
-    ; in          input, PINA      ; 从PINA读取键盘输入
-    ; ret
-
     push r16
 	push r17
     push r20
-	; push r21
 	push r22
 	push r23
 	push r24
@@ -26,7 +20,6 @@ take_keypad_input:
 		clr r16
 		clr r17
         clr r20
-        ; clr r21
         clr r22
         clr r23
         clr r24
@@ -37,7 +30,6 @@ take_keypad_input:
 	clr			col										; set initial column number to 0
 
 	colloop:
-		; DO_LCD_DATA_IMMEDIATE 'A'
 		cpi			col,			4						; if we have scanned all 4 columns, 
 		breq		scan_start								; continue
 															; else, start scanning the "col"th column
@@ -45,7 +37,6 @@ take_keypad_input:
 		rcall		sleep_5ms
 
 		LDS			r17 ,			PINL
-		;in	r17 , PINL raise error				; 
 		andi		r17 ,			ROWMASK					; read from the low bits of PORTL 
 		cpi			r17 ,			0xF						; check if any rows are on
 		breq		nextcol									; no rows are 0, hence no key is pressed, scan next column
@@ -54,7 +45,6 @@ take_keypad_input:
 		clr			row										; initial row = 0
 
 		rowloop:
-			; DO_LCD_DATA_IMMEDIATE 'A'
 			cpi			row,			4						; check if we have scanned all 4 rows
 			breq		nextcol									; if yes, scan next column
 																; else, scan this row
@@ -81,9 +71,7 @@ take_keypad_input:
 		lsl			r17 					
 		add			r17 ,			row						; r17  = row * 3 (row * 2 + row)
 		add			r17 ,			col						; add the column address to get the value
-		;
 		subi		r17 ,			-1
-		;
 		subi		r17 ,			-'0'					; add the value of character '0'
 		
 		jmp			convert_end
@@ -111,27 +99,14 @@ take_keypad_input:
 			ldi			r17 ,			'0'						; set to zero
 		
 	convert_end:
-        ; DO_LCD_DATA_IMMEDIATE 'A'
-		; mov 		r16, 			r17 
         mov 		r21, 			r17 
-		; DO_LCD_DATA_REGISTER r16
-		; out			PORTC,			r17 					; write value to PORTC
-		; do_lcd_data_from_register	r17 
-		; mov			input,			r17 
 		rcall		sleep_125ms
-		; do_lcd_command				0b00000010				; Return home: The cursor moves to the top left corner
-		;jmp			scan_start								; restart main loop
-	
-    ; ldi YL, low(@0) 
-	; ldi YH, high(@0)
-    ; st  Y, r16
 
     
 	pop r25
 	pop r24
 	pop r23
 	pop r22
-	; pop r21
 	pop r20
 	pop r17
 	pop r16

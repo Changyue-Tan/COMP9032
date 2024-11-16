@@ -23,6 +23,8 @@
 	pop YH
 	pop YL
 .endmacro
+
+
 ; initilise the two pointers:
 ; Last_Patient              -> Patients_Queue
 ; Next_Patient              -> Patients_Queue + 10
@@ -36,32 +38,24 @@ initialise_queue:
     ldi YL, low(Patients_Queue) 
 	ldi YH, high(Patients_Queue)
 
-/*
-    ; initilise queue with spaces
-    ldi         r24, low(2560)
-    ldi         r25, high(2560)
-    queue_initilisation_loop:
-        ldi         r19, ' '    
-        st          Y+, r19
-        sbiw        r25:r24, 1
-        brne        queue_initilisation_loop
-*/
-
     ldi ZL, low(Last_Patient) 
 	ldi ZH, high(Last_Patient)
     st Z+, YL
     st Z, YH
+    
     ; Next_Patient              -> Patients_Queue + 10
     ldi ZL, low(Next_Patient) 
 	ldi ZH, high(Next_Patient)
     adiw YH:YL, 10
     st Z+, YL
     st Z, YH
+    
     ; Space_For_New_Patient     -> Patients_Queue + 10
     ldi ZL, low(Space_For_New_Patient) 
 	ldi ZH, high(Space_For_New_Patient)
     st Z+, YL
     st Z, YH
+
     ; set last and next patient number
     CLEAR_ONE_BYTE_IN_DATA_MEMORY          Last_Patient_Number
     CLEAR_ONE_BYTE_IN_DATA_MEMORY          Next_Patient_Number
@@ -73,6 +67,7 @@ initialise_queue:
 ; add patinet stored at Patient_Name to the end of the queue
 enqueue:
     QUEUE_ACESSES_PROLOGUE
+
     ; initialise char counter to be 10, we only load 10 chars
     ldi r16, 10
 
@@ -82,17 +77,20 @@ enqueue:
     ld r18, Y+
     ld r19, Y
     ; r19:r18 now has the address of actual space for new patient
+
     mov YL, r18
     mov YH, r19
-    ; load a char of the patient name to r17
+    ; Y now points to the address of actual space for new patient
+
     ldi ZL, low(Patient_Name) 
     ldi ZH, high(Patient_Name)
+    ; Z points the new patient name that is about to be enqueued
 
     enqueue_start:
         ; if char counter is 0, we have loaded all chars
         cpi r16, 0
         breq enqueue_end
-
+        ; load a char of the patient name to r17
         ld r17, Z+
         ; store that char to this address
         st  Y+, r17
@@ -119,6 +117,7 @@ dequeue:
         cpi r16, 0
         breq dequeue_end
         dec r16
+        
         ; Next_Patient will be incremented by 10 at the end of loop
         INCREMENT_ONE_BYTE_IN_DATA_MEMORY Next_Patient
         rjmp dequeue_start

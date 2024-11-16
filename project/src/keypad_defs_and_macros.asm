@@ -12,6 +12,10 @@
 .def temp1	= r24										
 .def temp2  = r25
 
+
+/*
+The following macro is redundant as its functionality replace by a subroutine in "keypad_functins.asm" 
+
 ; data memory location to store the ascii value of the key being pressed taken as @0
 .macro SCAN_KEYPAD_INPUT_AS_ASCII_TO_DATA_MEMORY
     push r16
@@ -35,7 +39,6 @@
 	clr			col										; set initial column number to 0
 
 	colloop:
-		; DO_LCD_DATA_IMMEDIATE 'A'
 		cpi			col,			4						; if we have scanned all 4 columns, 
 		breq		scan_start								; continue
 															; else, start scanning the "col"th column
@@ -43,7 +46,6 @@
 		rcall		sleep_5ms
 
 		LDS			temp1,			PINL
-		;in	temp1, PINL raise error				; 
 		andi		temp1,			ROWMASK					; read from the low bits of PORTL 
 		cpi			temp1,			0xF						; check if any rows are on
 		breq		nextcol									; no rows are 0, hence no key is pressed, scan next column
@@ -52,7 +54,6 @@
 		clr			row										; initial row = 0
 
 		rowloop:
-			; DO_LCD_DATA_IMMEDIATE 'A'
 			cpi			row,			4						; check if we have scanned all 4 rows
 			breq		nextcol									; if yes, scan next column
 																; else, scan this row
@@ -79,9 +80,9 @@
 		lsl			temp1					
 		add			temp1,			row						; temp1 = row * 3 (row * 2 + row)
 		add			temp1,			col						; add the column address to get the value
-		;
+		
 		subi		temp1,			-1
-		;
+		
 		subi		temp1,			-'0'					; add the value of character '0'
 		
 		jmp			convert_end
@@ -109,15 +110,9 @@
 			ldi			temp1,			'0'						; set to zero
 		
 	convert_end:
-        ; DO_LCD_DATA_IMMEDIATE 'A'
+
 		mov 		r16, 			temp1
-		; DO_LCD_DATA_REGISTER r16
-		; out			PORTC,			temp1					; write value to PORTC
-		; do_lcd_data_from_register	temp1
-		; mov			input,			temp1
-		rcall		sleep_125ms
-		; do_lcd_command				0b00000010				; Return home: The cursor moves to the top left corner
-		;jmp			scan_start								; restart main loop
+		rcall		sleep_125ms									; debouncing
 	
     ldi YL, low(@0) 
 	ldi YH, high(@0)
@@ -131,3 +126,4 @@
 	pop r21
 	pop r20
 .endmacro
+*/
