@@ -202,6 +202,9 @@ EXT_INT0:
         rjmp  pattern_c
 
     patient_arrives:
+        ; slience the bell
+        rcall   led_bell_low
+        
         rcall dequeue
         rcall display_next_patient
         rcall sleep_1000ms
@@ -318,9 +321,7 @@ EXT_INT0:
 
 
     end_of_INT0:
-        ; slience the bell
-        rcall   led_bell_low
-        
+
         ENTRY_MODE_PROLOGUE
 
         ; if in entry mode: 
